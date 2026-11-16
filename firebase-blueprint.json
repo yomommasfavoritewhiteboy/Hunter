@@ -1,0 +1,105 @@
+{
+  "entities": {
+    "UserPrivateProfile": {
+      "title": "UserPrivateProfile",
+      "description": "Private user account metadata isolated under the owner path.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "email": { "type": "string", "format": "email", "minLength": 3, "maxLength": 254 },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "displayName", "updatedAt"]
+    },
+    "FirmwareConfig": {
+      "title": "FirmwareConfig",
+      "description": "Synchronized LilyGO T-Echo Meshtastic firmware, power policy, ringtone, and modular dashboard layout configuration.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "deviceName": { "type": "string", "minLength": 1, "maxLength": 48 },
+        "shortName": { "type": "string", "minLength": 1, "maxLength": 4 },
+        "powerMode": { "type": "string", "enum": ["expedition", "balanced", "performance", "custom"] },
+        "powerPolicy": { "type": "object" },
+        "radioConfig": { "type": "object" },
+        "bleConfig": { "type": "object" },
+        "ringtoneConfig": { "type": "object" },
+        "dashboardLayout": { "type": "array" },
+        "channels": { "type": "array" },
+        "lastSyncedDevice": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "revision": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id",
+        "ownerId",
+        "deviceName",
+        "shortName",
+        "powerMode",
+        "powerPolicy",
+        "radioConfig",
+        "bleConfig",
+        "ringtoneConfig",
+        "dashboardLayout",
+        "channels",
+        "lastSyncedDevice",
+        "revision",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "SyncedDevice": {
+      "title": "SyncedDevice",
+      "description": "Connected companion device or workstation registered to sync T-Echo configurations.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "label": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "platform": { "type": "string", "enum": ["desktop", "ios", "android", "techo-usb"] },
+        "activeConfigId": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "lastSeenAt": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ownerId", "label", "platform", "activeConfigId", "lastSeenAt", "createdAt"]
+    },
+    "MeshMessage": {
+      "title": "MeshMessage",
+      "description": "Encrypted Meshtastic packet history synced across user devices.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "channelIndex": { "type": "number" },
+        "senderShort": { "type": "string", "minLength": 1, "maxLength": 4 },
+        "plaintext": { "type": "string", "minLength": 1, "maxLength": 237 },
+        "ciphertextHex": { "type": "string", "minLength": 2, "maxLength": 600 },
+        "hopLimit": { "type": "number" },
+        "snrDb": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "ownerId", "channelIndex", "senderShort", "plaintext", "ciphertextHex", "hopLimit", "snrDb", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/private/{docId}": {
+      "schema": { "$ref": "#/entities/UserPrivateProfile" },
+      "description": "Isolated private user profile document (docId = 'profile')."
+    },
+    "/users/{userId}/configs/{configId}": {
+      "schema": { "$ref": "#/entities/FirmwareConfig" },
+      "description": "User's synchronized T-Echo firmware profiles and modular dashboard layouts."
+    },
+    "/users/{userId}/devices/{deviceId}": {
+      "schema": { "$ref": "#/entities/SyncedDevice" },
+      "description": "User's paired desktop, mobile, and hardware devices."
+    },
+    "/users/{userId}/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/MeshMessage" },
+      "description": "Encrypted mesh packet logs synchronized across paired devices."
+    }
+  }
+}

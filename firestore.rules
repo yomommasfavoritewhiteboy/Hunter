@@ -1,0 +1,152 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedOwner(userId) {
+      return isSignedIn()
+        && request.auth.uid == userId
+        && request.auth.token.email_verified == true;
+    }
+
+    function isValidProfile(data, userId) {
+      return data.keys().hasAll(['uid', 'email', 'displayName', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'displayName', 'updatedAt'])
+        && data.uid is string && data.uid == userId && isValidId(data.uid)
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 254
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80
+        && data.updatedAt == request.time;
+    }
+
+    function isValidConfig(data, userId, configId) {
+      return data.keys().hasAll([
+          'id', 'ownerId', 'deviceName', 'shortName', 'powerMode',
+          'powerPolicy', 'radioConfig', 'bleConfig', 'ringtoneConfig',
+          'dashboardLayout', 'channels', 'lastSyncedDevice', 'revision',
+          'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'ownerId', 'deviceName', 'shortName', 'powerMode',
+          'powerPolicy', 'radioConfig', 'bleConfig', 'ringtoneConfig',
+          'dashboardLayout', 'channels', 'lastSyncedDevice', 'revision',
+          'createdAt', 'updatedAt'
+        ])
+        && data.id is string && data.id == configId && isValidId(data.id)
+        && data.ownerId is string && data.ownerId == userId
+        && data.deviceName is string && data.deviceName.size() >= 1 && data.deviceName.size() <= 48
+        && data.shortName is string && data.shortName.size() >= 1 && data.shortName.size() <= 4
+        && data.powerMode in ['expedition', 'balanced', 'performance', 'custom']
+        && data.powerPolicy is map && data.powerPolicy.keys().size() <= 24
+        && data.radioConfig is map && data.radioConfig.keys().size() <= 24
+        && data.bleConfig is map && data.bleConfig.keys().size() <= 16
+        && data.ringtoneConfig is map && data.ringtoneConfig.keys().size() <= 16
+        && data.dashboardLayout is list && data.dashboardLayout.size() >= 0 && data.dashboardLayout.size() <= 12
+        && (data.dashboardLayout.size() == 0 || data.dashboardLayout[0] is map)
+        && data.channels is list && data.channels.size() >= 1 && data.channels.size() <= 8
+        && data.channels[0] is map
+        && data.lastSyncedDevice is string && data.lastSyncedDevice.size() >= 1 && data.lastSyncedDevice.size() <= 64
+        && data.revision is number && data.revision >= 1;
+    }
+
+    function isValidDevice(data, userId, deviceId) {
+      return data.keys().hasAll(['id', 'ownerId', 'label', 'platform', 'activeConfigId', 'lastSeenAt', 'createdAt'])
+        && data.keys().hasOnly(['id', 'ownerId', 'label', 'platform', 'activeConfigId', 'lastSeenAt', 'createdAt'])
+        && data.id is string && data.id == deviceId && isValidId(data.id)
+        && data.ownerId is string && data.ownerId == userId
+        && data.label is string && data.label.size() >= 1 && data.label.size() <= 64
+        && data.platform in ['desktop', 'ios', 'android', 'techo-usb']
+        && data.activeConfigId is string && isValidId(data.activeConfigId);
+    }
+
+    function isValidMessage(data, userId, messageId) {
+      return data.keys().hasAll(['id', 'ownerId', 'channelIndex', 'senderShort', 'plaintext', 'ciphertextHex', 'hopLimit', 'snrDb', 'createdAt'])
+        && data.keys().hasOnly(['id', 'ownerId', 'channelIndex', 'senderShort', 'plaintext', 'ciphertextHex', 'hopLimit', 'snrDb', 'createdAt'])
+        && data.id is string && data.id == messageId && isValidId(data.id)
+        && data.ownerId is string && data.ownerId == userId
+        && data.channelIndex is number && data.channelIndex >= 0 && data.channelIndex <= 7
+        && data.senderShort is string && data.senderShort.size() >= 1 && data.senderShort.size() <= 4
+        && data.plaintext is string && data.plaintext.size() >= 1 && data.plaintext.size() <= 237
+        && data.ciphertextHex is string && data.ciphertextHex.size() >= 2 && data.ciphertextHex.size() <= 600
+        && data.hopLimit is number && data.hopLimit >= 0 && data.hopLimit <= 7
+        && data.snrDb is number && data.snrDb >= -30 && data.snrDb <= 25
+        && data.createdAt == request.time;
+    }
+
+    match /users/{userId}/private/{docId} {
+      allow get: if isSignedIn() && request.auth.uid == userId && docId == 'profile';
+      allow list: if false;
+      allow create, update: if isVerifiedOwner(userId) && docId == 'profile' && isValidProfile(incoming(), userId);
+      allow delete: if false;
+    }
+
+    match /users/{userId}/configs/{configId} {
+      allow get: if isSignedIn() && request.auth.uid == userId && isValidId(configId);
+      allow list: if isSignedIn() && request.auth.uid == userId && resource.data.ownerId == request.auth.uid;
+      allow create: if isVerifiedOwner(userId)
+        && isValidId(configId)
+        && isValidConfig(incoming(), userId, configId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerifiedOwner(userId)
+        && isValidId(configId)
+        && isValidConfig(incoming(), userId, configId)
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'deviceName', 'shortName', 'powerMode', 'powerPolicy',
+          'radioConfig', 'bleConfig', 'ringtoneConfig', 'dashboardLayout',
+          'channels', 'lastSyncedDevice', 'revision', 'updatedAt'
+        ]);
+      allow delete: if isVerifiedOwner(userId) && isValidId(configId);
+    }
+
+    match /users/{userId}/devices/{deviceId} {
+      allow get: if isSignedIn() && request.auth.uid == userId && isValidId(deviceId);
+      allow list: if isSignedIn() && request.auth.uid == userId && resource.data.ownerId == request.auth.uid;
+      allow create: if isVerifiedOwner(userId)
+        && isValidId(deviceId)
+        && isValidDevice(incoming(), userId, deviceId)
+        && incoming().createdAt == request.time
+        && incoming().lastSeenAt == request.time;
+      allow update: if isVerifiedOwner(userId)
+        && isValidId(deviceId)
+        && isValidDevice(incoming(), userId, deviceId)
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().lastSeenAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'label', 'platform', 'activeConfigId', 'lastSeenAt'
+        ]);
+      allow delete: if isVerifiedOwner(userId) && isValidId(deviceId);
+    }
+
+    match /users/{userId}/messages/{messageId} {
+      allow get: if isSignedIn() && request.auth.uid == userId && isValidId(messageId);
+      allow list: if isSignedIn() && request.auth.uid == userId && resource.data.ownerId == request.auth.uid;
+      allow create: if isVerifiedOwner(userId)
+        && isValidId(messageId)
+        && isValidMessage(incoming(), userId, messageId);
+      allow update: if false;
+      allow delete: if isVerifiedOwner(userId) && isValidId(messageId);
+    }
+  }
+}

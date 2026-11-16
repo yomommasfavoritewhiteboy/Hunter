@@ -1,0 +1,8 @@
+{
+  "name": "EchoMesh Studio",
+  "description": "LilyGO T-Echo Card Meshtastic + MeshCore firmware generator, adaptive battery/solar telemetry workbench, and synchronized mobile dashboard configurator.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
